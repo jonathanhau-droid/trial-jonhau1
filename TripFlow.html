@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-HK">
+<head>
+    <meta charset="UTF-8">
+    <!-- iOS Viewport & Safe Area Support -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- iOS Web App Capabilities (Add to Home Screen) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TripFlow 行程">
+    <meta name="theme-color" content="#ffffff">
+    
+    <!-- Dynamic App Icon SVG Data URI for iOS Home Screen -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%230EA5E9'/%3E%3Cstop offset='100%25' stop-color='%232563EB'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='40' fill='url(%23g)'/%3E%3Cpath d='M132 54L46 88c-4 1.6-3.8 7.3.3 8.6l28 9.2 10.5 31.5c1.3 3.9 6.5 4.7 8.9 1.4l15.3-21 26.5 19.5c3.4 2.5 8.2.6 9-3.5l13-73.5c.8-4.5-3.6-8-7.5-6.2z' fill='%23ffffff'/%3E%3C/svg%3E">
+
+    <title>TripFlow 旅遊行程規劃</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    colors: {
+                        ios: {
+                            bg: '#F2F2F7',
+                            card: '#FFFFFF',
+                            blue: '#007AFF',
+                            gray: '#8E8E93',
+                            separator: '#E5E5EA'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom iOS PWA Styling & Safe Area Handling */
+        :root {
+            --sat: env(safe-area-inset-top, 20px);
+            --sab: env(safe-area-inset-bottom, 20px);
+        }
+
+        body {
+            background-color: #F2F2F7;
+            color: #1C1C1E;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            overscroll-behavior-y: none;
+            user-select: none;
+        }
+
+        /* Allow text selection inside inputs */
+        input, textarea, select {
+            user-select: text;
+        }
+
+        .pt-safe {
+            padding-top: max(env(safe-area-inset-top), 14px);
+        }
+
+        .pb-safe {
+            padding-bottom: max(env(safe-area-inset-bottom), 16px);
+        }
+
+        .bottom-nav-spacing {
+            padding-bottom: calc(84px + env(safe-area-inset-bottom, 20px));
+        }
+
+        /* Hide scrollbars for horizontal day selector */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Smooth iOS Sheet Transition */
+        .modal-backdrop {
+            transition: opacity 0.25s ease;
+        }
+        .modal-sheet {
+            transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .modal-hidden .modal-backdrop {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .modal-hidden .modal-sheet {
+            transform: translateY(100%);
+        }
+
+        /* Toast Notification */
+        #toast {
+            transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+            top: calc(max(env(safe-area-inset-top), 16px) + 12px);
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col overflow-x-hidden">
+
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed left-1/2 -translate-x-1/2 z-50 bg-gray-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-full shadow-lg text-sm font-medium flex items-center gap-2 opacity-0 -translate-y-8 pointer-events-none">
+        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toast-msg">已儲存</span>
+    </div>
+
+    <!-- Top Navigation Header (iOS Translucent Glass) -->
+    <header class="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-gray-200/80 pt-safe">
+        <div class="max-w-lg mx-auto px-4 pb-3">
+            <div class="flex items-center justify-between gap-2">
+                <!-- Trip Selector Button -->
+                <button onclick="openTripManager()" class="flex items-center gap-2 text-left active:opacity-70 transition py-1 min-h-[44px]">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-sm shrink-0">
+                        <i data-lucide="plane" class="w-5 h-5"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <div class="flex items-center gap-1">
+                            <h1 id="header-trip-title" class="font-bold text-lg text-gray-900 truncate max-w-[180px] sm:max-w-[230px]">載入中...</h1>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 shrink-0"></i>
+                        </div>
+                        <p id="header-trip-subtitle" class="text-xs text-gray-500 truncate">共 0 天 • HKD</p>
+                    </div>
+                </button>
+
+                <!-- Right Action Buttons -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <!-- Add to iPhone Home Screen Guide Button -->
+                    <button id="btn-install-guide" onclick="openInstallModal()" class="flex items-center gap-1 bg-sky-50 hover:bg-sky-100 active:scale-95 text-sky-600 px-3 py-2 rounded-full text-xs font-semibold transition min-h-[38px]" title="加入主畫面教學">
+                        <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+                        <span>裝成 App</span>
+                    </button>
+
+                    <!-- Share / Export Menu Button -->
+                    <button onclick="openShareModal()" class="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 flex items-center justify-center text-gray-700 transition" aria-label="分享與匯出">
+                        <i data-lucide="share" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Horizontal Day Selector (Only visible in Itinerary Tab) -->
+            <div id="day-selector-wrapper" class="mt-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                <!-- Day Pills injected via JS -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-lg w-full mx-auto px-4 pt-4 bottom-nav-spacing">
+        
+        <!-- TAB 1: 行程 (ITINERARY) -->
+        <section id="tab-itinerary" class="space-y-4">
+            <!-- Day Summary Header Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="current-day-badge" class="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600">DAY 1</span>
+                        <span id="current-day-date" class="text-sm font-medium text-gray-500">2026年11月20日</span>
+                    </div>
+                    <h2 id="current-day-theme" class="text-base font-bold text-gray-900 mt-1">抵達東京・新宿夜遊</h2>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button onclick="editCurrentDayInfo()" class="p-2.5 text-gray-400 hover:text-gray-700 active:bg-gray-100 rounded-xl transition" title="編輯當日主題">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="sortDayItemsByTime()" class="p-2.5 text-gray-400 hover:text-blue-600 active:bg-blue-50 rounded-xl transition" title="按時間自動排序">
+                        <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Timeline Container -->
+            <div id="timeline-container" class="relative space-y-3">
+                <!-- Timeline Items injected via JS -->
+            </div>
+
+            <!-- Add Activity Inline Button -->
+            <button onclick="openActivityModal()" class="w-full py-3.5 rounded-2xl border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50/40 active:scale-[0.99] text-gray-500 hover:text-blue-600 font-semibold text-sm flex items-center justify-center gap-2 transition min-h-[50px]">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                <span>新增行程項目</span>
+            </button>
+        </section>
+
+        <!-- TAB 2: 清單 (PACKING & TO-DO CHECKLIST) -->
+        <section id="tab-checklist" class="hidden space-y-4">
+            <!-- Progress Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="font-bold text-gray-900 text-base">出發前準備清單</h2>
+                    <span id="checklist-progress-text" class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">0 / 0 完成</span>
+                </div>
+                <div class="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                    <div id="checklist-progress-bar" class="bg-gradient-to-r from-sky-500 to-blue-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Quick Add Checklist Input -->
+            <form onsubmit="handleAddChecklist(event)" class="flex gap-2">
+                <input type="text" id="new-checklist-input" placeholder="新增攜帶物品或待辦事項（例如：轉插頭、唱錢）" class="flex-1 bg-white rounded-2xl px-4 py-3 text-sm border border-gray-200 focus:outline-none focus:border-blue-500 shadow-sm min-h-[46px]" required>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 rounded-2xl font-semibold text-sm shadow-sm flex items-center justify-center min-w-[64px] min-h-[46px] transition">
+                    新增
+                </button>
+            </form>
+
+            <!-- Checklist Items List -->
+            <div id="checklist-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+                <!-- Items injected via JS -->
+            </div>
+        </section>
+
+        <!-- TAB 3: 預算 (BUDGET & EXPENSES) -->
+        <section id="tab-budget" class="hidden space-y-4">
+            <!-- Total Budget Summary Card -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-md">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-300 uppercase tracking-wider">行程總預計開支</span>
+                    <span id="budget-currency-badge" class="text-xs font-bold bg-white/15 px-2.5 py-0.5 rounded-full">HKD</span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="budget-total-amount" class="text-3xl font-bold tracking-tight">$0</span>
+                </div>
+                <div class="mt-4 pt-3 border-t border-white/10 flex justify-between text-xs text-slate-300">
+                    <span>行程表項目：<strong id="budget-itinerary-sum" class="text-white">$0</strong></span>
+                    <span>額外開支：<strong id="budget-extra-sum" class="text-white">$0</strong></span>
+                </div>
+            </div>
+
+            <!-- Category Breakdown Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+                <h3 class="font-bold text-gray-900 text-sm">分類開支分佈</h3>
+                <div id="budget-breakdown-container" class="space-y-3">
+                    <!-- Category bars injected via JS -->
+                </div>
+            </div>
+
+            <!-- Extra Expenses Section (Flights, Insurance, SIM Card, etc.) -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-gray-900 text-sm">行前 / 額外固定開支（機票、保險等）</h3>
+                </div>
+                <form onsubmit="handleAddExtraExpense(event)" class="grid grid-cols-12 gap-2">
+                    <input type="text" id="extra-expense-name" placeholder="項目（如：來回機票）" class="col-span-6 bg-gray-50 rounded-xl px-3 py-2.5 text-sm border border-gray-200 focus:outline-none focus:border-blue-500" required>
+                    <input type="number" id="extra-expense-cost" placeholder="金額" min="0" step="any" class="col-span-4 bg-gray-50 rounded-xl px-3 py-2.5 text-sm border border-gray-200 focus:outline-none focus:border-blue-500" required>
+                    <button type="submit" class="col-span-2 bg-blue-600 active:scale-95 text-white rounded-xl font-semibold text-sm flex items-center justify-center">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </form>
+                <div id="extra-expenses-list" class="divide-y divide-gray-100">
+                    <!-- Extra expenses injected via JS -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Floating Action Button (Quick Add Activity on Itinerary Tab) -->
+    <button id="fab-add" onclick="openActivityModal()" class="fixed right-5 z-20 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-90 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center transition" style="bottom: calc(78px + env(safe-area-inset-bottom, 16px));" aria-label="新增行程">
+        <i data-lucide="plus" class="w-7 h-7"></i>
+    </button>
+
+    <!-- Bottom iOS Native Tab Bar -->
+    <nav class="fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-xl border-t border-gray-200/80 pb-safe">
+        <div class="max-w-lg mx-auto grid grid-cols-3 h-14">
+            <button onclick="switchTab('itinerary')" id="nav-btn-itinerary" class="flex flex-col items-center justify-center gap-0.5 text-blue-600 transition">
+                <i data-lucide="calendar-days" class="w-5 h-5"></i>
+                <span class="text-[11px] font-semibold">行程</span>
+            </button>
+            <button onclick="switchTab('checklist')" id="nav-btn-checklist" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-gray-600 transition">
+                <i data-lucide="check-square" class="w-5 h-5"></i>
+                <span class="text-[11px] font-medium">清單</span>
+            </button>
+            <button onclick="switchTab('budget')" id="nav-btn-budget" class="flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-gray-600 transition">
+                <i data-lucide="wallet" class="w-5 h-5"></i>
+                <span class="text-[11px] font-medium">預算</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ==========================================
+         MODALS (iOS Bottom Sheets)
+    =========================================== -->
+
+    <!-- 1. Add / Edit Activity Modal -->
+    <div id="activity-modal" class="fixed inset-0 z-50 flex items-end justify-center modal-hidden">
+        <div onclick="closeModal('activity-modal')" class="modal-backdrop fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
+        <div class="modal-sheet relative w-full max-w-lg bg-white rounded-t-3xl p-5 pb-safe shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="activity-modal-title" class="text-lg font-bold text-gray-900">新增行程項目</h3>
+                <button onclick="closeModal('activity-modal')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <form id="activity-form" onsubmit="saveActivity(event)" class="space-y-4">
+                <input type="hidden" id="act-id">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">時間</label>
+                        <input type="time" id="act-time" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">分類</label>
+                        <select id="act-category" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:border-blue-500">
+                            <option value="sightseeing">📸 景點</option>
+                            <option value="food">🍜 美食</option>
+                            <option value="transport">🚄 交通</option>
+                            <option value="hotel">🏨 住宿</option>
+                            <option value="shopping">🛍️ 購物</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">活動 / 地點名稱 *</label>
+                    <input type="text" id="act-title" placeholder="例如：淺草寺雷門、一蘭拉麵" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">地點搜尋 / 地址 (可跳轉地圖)</label>
+                        <input type="text" id="act-location" placeholder="輸入地圖關鍵字" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">預計花費 (<span id="act-currency-label">HKD</span>)</label>
+                        <input type="number" id="act-cost" placeholder="0" min="0" step="any" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">備註 / 預約編號</label>
+                    <textarea id="act-notes" rows="2" placeholder="輸入車次、訂位號碼或必食推介..." class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-blue-500"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" id="btn-delete-activity" onclick="deleteCurrentActivity()" class="hidden px-4 py-3 rounded-xl bg-red-50 text-red-600 font-semibold text-sm hover:bg-red-100 transition">
+                        刪除
+                    </button>
+                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold py-3 rounded-xl text-sm shadow-sm transition">
+                        儲存行程
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. Trip Manager Modal (Switch / Create / Delete Trips) -->
+    <div id="trip-modal" class="fixed inset-0 z-50 flex items-end justify-center modal-hidden">
+        <div onclick="closeModal('trip-modal')" class="modal-backdrop fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
+        <div class="modal-sheet relative w-full max-w-lg bg-white rounded-t-3xl p-5 pb-safe shadow-2xl max-h-[88vh] overflow-y-auto">
+            <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-900">我的旅程列表</h3>
+                <button onclick="closeModal('trip-modal')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Saved Trips List -->
+            <div id="trips-list-container" class="space-y-2.5 mb-5">
+                <!-- Trips injected via JS -->
+            </div>
+
+            <!-- Create New Trip Form -->
+            <div class="border-t border-gray-100 pt-4">
+                <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-1.5">
+                    <i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i>
+                    <span>建立新旅程</span>
+                </h4>
+                <form onsubmit="createNewTrip(event)" class="space-y-3">
+                    <input type="text" id="new-trip-name" placeholder="旅程名稱（例如：首爾 5 天美食團）" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-gray-500 mb-1">出發日期</label>
+                            <input type="date" id="new-trip-date" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-gray-500 mb-1">天數</label>
+                            <input type="number" id="new-trip-days" value="4" min="1" max="30" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-gray-500 mb-1">貨幣</label>
+                            <select id="new-trip-currency" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-blue-500">
+                                <option value="HKD">HKD ($)</option>
+                                <option value="JPY">JPY (¥)</option>
+                                <option value="TWD">TWD ($)</option>
+                                <option value="KRW">KRW (₩)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold py-3 rounded-xl text-sm shadow-sm transition">
+                        建立並切換至此旅程
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Add to iPhone Home Screen Guide Modal -->
+    <div id="install-modal" class="fixed inset-0 z-50 flex items-end justify-center modal-hidden">
+        <div onclick="closeModal('install-modal')" class="modal-backdrop fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
+        <div class="modal-sheet relative w-full max-w-lg bg-white rounded-t-3xl p-6 pb-safe shadow-2xl">
+            <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white shadow">
+                        <i data-lucide="plane" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900">加到 iPhone 主畫面</h3>
+                        <p class="text-xs text-gray-500">無需下載，像原生 App 一樣全螢幕使用</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('install-modal')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="bg-gray-50 rounded-2xl p-4 space-y-4 my-4 border border-gray-100">
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-blue-100 text-blue-600 font-bold text-sm flex items-center justify-center shrink-0 mt-0.5">1</div>
+                    <div class="text-sm text-gray-700">
+                        使用 iPhone 的 <strong>Safari 瀏覽器</strong>開啟此網頁，點擊底部工具列正中央的 <span class="inline-flex items-center px-2 py-0.5 rounded bg-white border border-gray-200 text-blue-600 font-semibold mx-1"><i data-lucide="share" class="w-3.5 h-3.5 mr-1"></i>分享</span> 按鈕。
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-blue-100 text-blue-600 font-bold text-sm flex items-center justify-center shrink-0 mt-0.5">2</div>
+                    <div class="text-sm text-gray-700">
+                        在彈出選單中向下滑動，點選 <span class="inline-flex items-center px-2 py-0.5 rounded bg-white border border-gray-200 text-gray-900 font-semibold mx-1"><i data-lucide="plus-square" class="w-3.5 h-3.5 mr-1"></i>加入主畫面</span> (Add to Home Screen)。
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-blue-100 text-blue-600 font-bold text-sm flex items-center justify-center shrink-0 mt-0.5">3</div>
+                    <div class="text-sm text-gray-700">
+                        點擊右上角的 <strong>「新增」</strong>，即可在 iPhone 桌面看到 <strong>TripFlow 行程</strong> App 圖示！所有行程資料會自動儲存在手機內。
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="closeModal('install-modal')" class="w-full bg-gray-900 text-white font-semibold py-3 rounded-xl text-sm">
+                明白，立即開始規劃
+            </button>
+        </div>
+    </div>
+
+    <!-- 4. Share / Export / Backup Modal -->
+    <div id="share-modal" class="fixed inset-0 z-50 flex items-end justify-center modal-hidden">
+        <div onclick="closeModal('share-modal')" class="modal-backdrop fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
+        <div class="modal-sheet relative w-full max-w-lg bg-white rounded-t-3xl p-5 pb-safe shadow-2xl">
+            <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-900">分享與備份行程</h3>
+                <button onclick="closeModal('share-modal')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <button onclick="copyItineraryText()" class="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition text-left">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                        <i data-lucide="copy" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold text-sm">複製文字行程（適合 WhatsApp / LINE）</div>
+                        <div class="text-xs text-emerald-600">一鍵複製完整每日時間表，直接貼上發送給旅伴</div>
+                    </div>
+                </button>
+
+                <button onclick="exportJSON()" class="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-800 transition text-left">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold text-sm">匯出備份檔案 (.json)</div>
+                        <div class="text-xs text-blue-600">將所有旅程資料下載保存，方便日後還原或轉移</div>
+                    </div>
+                </button>
+
+                <label class="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-gray-50 hover:bg-gray-100 text-gray-800 transition text-left cursor-pointer">
+                    <div class="w-10 h-10 rounded-xl bg-gray-700 text-white flex items-center justify-center shrink-0">
+                        <i data-lucide="upload" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold text-sm">匯入備份檔案 (.json)</div>
+                        <div class="text-xs text-gray-500">從先前的 JSON 備份還原旅程</div>
+                    </div>
+                    <input type="file" accept=".json" onchange="importJSON(event)" class="hidden">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Edit Day Theme Modal -->
+    <div id="day-edit-modal" class="fixed inset-0 z-50 flex items-end justify-center modal-hidden">
+        <div onclick="closeModal('day-edit-modal')" class="modal-backdrop fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
+        <div class="modal-sheet relative w-full max-w-lg bg-white rounded-t-3xl p-5 pb-safe shadow-2xl">
+            <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <h3 class="text-lg font-bold text-gray-900 mb-3">編輯當日主題與日期</h3>
+            <form onsubmit="saveDayInfo(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">日期</label>
+                    <input type="date" id="edit-day-date" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">當日主題摘要</label>
+                    <input type="text" id="edit-day-theme" placeholder="例如：淺草寺・晴空塔・燒肉晚餐" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" id="btn-delete-day" onclick="deleteCurrentDay()" class="px-4 py-3 rounded-xl bg-red-50 text-red-600 font-semibold text-sm">刪除這天</button>
+                    <button type="submit" class="flex-1 bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm">儲存設定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hidden textarea for safe clipboard fallback -->
+    <textarea id="clipboard-helper" class="fixed -left-[9999px] top-0 opacity-0" readonly></textarea>
+
+    <!-- ==========================================
+         APPLICATION LOGIC
+    =========================================== -->
+    <script>
+        // Category Metadata Configuration
+        const CATEGORIES = {
+            sightseeing: { label: '景點', icon: 'camera', bg: 'bg-sky-50', text: 'text-sky-600', badge: 'bg-sky-100 text-sky-700', bar: 'bg-sky-500' },
+            food:        { label: '美食', icon: 'utensils', bg: 'bg-orange-50', text: 'text-orange-600', badge: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500' },
+            transport:   { label: '交通', icon: 'train-front', bg: 'bg-indigo-50', text: 'text-indigo-600', badge: 'bg-indigo-100 text-indigo-700', bar: 'bg-indigo-500' },
+            hotel:       { label: '住宿', icon: 'bed-double', bg: 'bg-purple-50', text: 'text-purple-600', badge: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500' },
+            shopping:    { label: '購物', icon: 'shopping-bag', bg: 'bg-pink-50', text: 'text-pink-600', badge: 'bg-pink-100 text-pink-700', bar: 'bg-pink-500' }
+        };
+
+        // Storage Key
+        const STORAGE_KEY = 'tripflow_pwa_data_v1';
+
+        // Default Pre-populated Data (Realistic Hong Kong -> Tokyo 5-Day Trip)
+        const DEFAULT_STATE = {
+            activeTripId: 'trip_tokyo_2026',
+            activeDayIndex: 0,
+            activeTab: 'itinerary',
+            trips: [
+                {
+                    id: 'trip_tokyo_2026',
+                    name: '東京 5 天紅葉美食之旅',
+                    currency: 'HKD',
+                    days: [
+                        {
+                            date: '2026-11-20',
+                            theme: '抵達東京・新宿夜遊與拉麵',
+                            items: [
+                                { id: 'a1', time: '14:30', category: 'transport', title: '成田機場乘搭 N’EX 成田特快往新宿', location: 'Narita Airport Terminal 1', cost: 175, notes: '已預訂指定席，車程約 80 分鐘' },
+                                { id: 'a2', time: '16:30', category: 'hotel', title: '新宿格拉斯麗酒店 Check-in (哥斯拉酒店)', location: 'Hotel Gracery Shinjuku', cost: 1450, notes: '領取預訂確認信，放下行李稍作休息' },
+                                { id: 'a3', time: '18:30', category: 'food', title: '一蘭拉麵 新宿中央東口店', location: 'Ichiran Shinjuku Central East', cost: 85, notes: '必加半熟鹽味蛋與替玉' },
+                                { id: 'a4', time: '20:30', category: 'shopping', title: '新宿歌舞伎町 & 唐吉訶德驚安殿堂', location: 'Don Quijote Shinjuku Kabukicho', cost: 400, notes: '買宵夜零食、眼藥水，記得帶護照退稅' }
+                            ]
+                        },
+                        {
+                            date: '2026-11-21',
+                            theme: '淺草雷門・晴空塔・銀座購物',
+                            items: [
+                                { id: 'b1', time: '09:30', category: 'sightseeing', title: '淺草寺雷門 & 仲見世通商店街', location: 'Senso-ji Temple', cost: 0, notes: '早上人流較少，影相最靚，必試炸饅頭' },
+                                { id: 'b2', time: '12:30', category: 'food', title: '淺草今半 百年老店壽喜燒午市套餐', location: 'Asakusa Imahan', cost: 380, notes: '午市性價比極高，建議 11:30 前去排隊' },
+                                { id: 'b3', time: '15:00', category: 'sightseeing', title: '東京晴空塔 Tokyo Skytree 觀景台', location: 'Tokyo Skytree', cost: 130, notes: '黃昏時段上塔可同時睇日景與夜景' },
+                                { id: 'b4', time: '18:30', category: 'shopping', title: '銀座旗艦店逛街 (Uniqlo 12層樓 & Loft)', location: 'UNIQLO Ginza', cost: 850, notes: '星期六日銀座步行者天國' }
+                            ]
+                        },
+                        {
+                            date: '2026-11-22',
+                            theme: '明治神宮銀杏・原宿表參道・澀谷 SKY',
+                            items: [
+                                { id: 'c1', time: '10:00', category: 'sightseeing', title: '明治神宮外苑 銀杏並木大道', location: 'Meiji Jingu Gaien Ginkgo Avenue', cost: 0, notes: '11月下旬金黃色銀杏大道打卡' },
+                                { id: 'c2', time: '13:00', category: 'food', title: '表參道 Luke’s Lobster 龍蝦包', location: 'Lukes Lobster Omotesando', cost: 95, notes: '行街輕食推介' },
+                                { id: 'c3', time: '16:40', category: 'sightseeing', title: 'SHIBUYA SKY 澀谷展望台 (日落時段)', location: 'SHIBUYA SKY', cost: 135, notes: '已網上預約 16:40 入場 QR Code' },
+                                { id: 'c4', time: '19:30', category: 'food', title: '澀谷 挽肉と米 (炭火漢堡扒)', location: 'Hikiniku to Come Shibuya', cost: 110, notes: '早上已網上取籌，準時到達' }
+                            ]
+                        },
+                        {
+                            date: '2026-11-23',
+                            theme: '築地場外市場・台場海濱公園',
+                            items: [
+                                { id: 'd1', time: '08:30', category: 'food', title: '築地場外市場 海鮮丼 & 玉子燒', location: 'Tsukiji Outer Market', cost: 220, notes: '丸武玉子燒、海膽吞拿魚腩丼' },
+                                { id: 'd2', time: '13:00', category: 'sightseeing', title: '台場 DiverCity 獨角獸高達 & 海濱公園', location: 'DiverCity Tokyo Plaza', cost: 50, notes: '搭百合海鷗號欣賞彩虹大橋' }
+                            ]
+                        },
+                        {
+                            date: '2026-11-24',
+                            theme: '最後衝刺手信・返程回香港',
+                            items: [
+                                { id: 'e1', time: '10:30', category: 'shopping', title: '東京車站一番街買伴手禮 (NY Cheese)', location: 'Tokyo Station First Avenue', cost: 350, notes: '買齊手信準備去機場' },
+                                { id: 'e2', time: '14:00', category: 'transport', title: '前往成田機場辦理登機手續', location: 'Narita International Airport', cost: 175, notes: '預留時間機場免稅店買 Royce 朱古力' }
+                            ]
+                        }
+                    ],
+                    checklist: [
+                        { id: 'chk1', text: '香港特區護照（有效期 6 個月以上）', done: true },
+                        { id: 'chk2', text: 'Visit Japan Web 入境及海關 QR Code 截圖', done: true },
+                        { id: 'chk3', text: '日本 5G 數據卡 / eSIM 開通', done: false },
+                        { id: 'chk4', text: '兌換日圓現金 (JPY) & 帶備海外簽賬信用卡', done: false },
+                        { id: 'chk5', text: '兩腳扁頭轉插頭 & 尿袋 (行動電源)', done: false },
+                        { id: 'chk6', text: 'Apple Wallet 加入 Suica / PASMO 西瓜卡', done: true }
+                    ],
+                    extraExpenses: [
+                        { id: 'ext1', name: '國泰航空來回東京機票', cost: 3250 },
+                        { id: 'ext2', name: '5日旅遊保險 + 日本 eSIM', cost: 240 }
+                    ]
+                }
+            ]
+        };
+
+        let appState = null;
+
+        // ==========================================
+        // INITIALIZATION & STORAGE
+        // ==========================================
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    appState = JSON.parse(raw);
+                } else {
+                    appState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+                    saveState();
+                }
+            } catch (e) {
+                console.error('Failed to load state:', e);
+                appState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            } catch (e) {
+                console.error('Failed to save state:', e);
+            }
+        }
+
+        function getCurrentTrip() {
+            let trip = appState.trips.find(t => t.id === appState.activeTripId);
+            if (!trip && appState.trips.length > 0) {
+                trip = appState.trips[0];
+                appState.activeTripId = trip.id;
+            }
+            return trip;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-8', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-8', 'pointer-events-none');
+                toast.classList.remove('opacity-100', 'translate-y-0');
+            }, 2200);
+        }
+
+        // Detect if already running as installed iOS Standalone PWA
+        function checkStandaloneMode() {
+            const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+            const guideBtn = document.getElementById('btn-install-guide');
+            if (isStandalone && guideBtn) {
+                guideBtn.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // RENDERING ENGINE
+        // ==========================================
+        function renderAll() {
+            const trip = getCurrentTrip();
+            if (!trip) return;
+
+            // Ensure valid activeDayIndex
+            if (appState.activeDayIndex >= trip.days.length) {
+                appState.activeDayIndex = Math.max(0, trip.days.length - 1);
+            }
+
+            // Update Header
+            document.getElementById('header-trip-title').textContent = trip.name;
+            document.getElementById('header-trip-subtitle').textContent = `共 ${trip.days.length} 天 • 貨幣 ${trip.currency}`;
+            document.getElementById('act-currency-label').textContent = trip.currency;
+
+            renderDaySelector(trip);
+            renderTimeline(trip);
+            renderChecklist(trip);
+            renderBudget(trip);
+            
+            // Re-initialize Lucide icons
+            lucide.createIcons();
+        }
+
+        function renderDaySelector(trip) {
+            const wrapper = document.getElementById('day-selector-wrapper');
+            wrapper.innerHTML = '';
+
+            trip.days.forEach((day, idx) => {
+                const isActive = idx === appState.activeDayIndex;
+                const dateObj = new Date(day.date + 'T00:00:00');
+                const shortDate = isNaN(dateObj) ? '' : `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+
+                const btn = document.createElement('button');
+                btn.onclick = () => {
+                    appState.activeDayIndex = idx;
+                    saveState();
+                    renderAll();
+                };
+                btn.className = `shrink-0 px-3.5 py-2 rounded-xl text-left transition flex flex-col items-center min-w-[68px] ${
+                    isActive 
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' 
+                    : 'bg-gray-100/90 text-gray-600 hover:bg-gray-200/70'
+                }`;
+                btn.innerHTML = `
+                    <span class="text-[11px] font-bold tracking-wide ${isActive ? 'text-blue-100' : 'text-gray-400'}">DAY ${idx + 1}</span>
+                    <span class="text-xs font-bold mt-0.5">${shortDate || '第' + (idx + 1) + '天'}</span>
+                `;
+                wrapper.appendChild(btn);
+            });
+
+            // Add "+ Day" button at end of horizontal scroll
+            const addDayBtn = document.createElement('button');
+            addDayBtn.onclick = addNewDay;
+            addDayBtn.className = 'shrink-0 px-3 py-2 rounded-xl border border-dashed border-gray-300 text-gray-500 hover:text-blue-600 hover:border-blue-400 flex flex-col items-center justify-center min-w-[56px] min-h-[48px] transition';
+            addDayBtn.innerHTML = `
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span class="text-[10px] font-semibold mt-0.5">加一天</span>
+            `;
+            wrapper.appendChild(addDayBtn);
+        }
+
+        function renderTimeline(trip) {
+            const day = trip.days[appState.activeDayIndex];
+            if (!day) return;
+
+            // Update Day Info Card
+            document.getElementById('current-day-badge').textContent = `DAY ${appState.activeDayIndex + 1}`;
+            const dateObj = new Date(day.date + 'T00:00:00');
+            const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+            const formattedDate = isNaN(dateObj) 
+                ? day.date 
+                : `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日 (週${weekdays[dateObj.getDay()]})`;
+            
+            document.getElementById('current-day-date').textContent = formattedDate;
+            document.getElementById('current-day-theme').textContent = day.theme || '未設定當日主題';
+
+            const container = document.getElementById('timeline-container');
+            container.innerHTML = '';
+
+            if (day.items.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-8 text-center border border-gray-100">
+                        <div class="w-12 h-12 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mx-auto mb-3">
+                            <i data-lucide="map-pin" class="w-6 h-6"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-700">這天還沒有安排任何行程</p>
+                        <p class="text-xs text-gray-400 mt-1">點擊下方按鈕新增景點、美食或交通資訊</p>
+                    </div>
+                `;
+                return;
+            }
+
+            day.items.forEach((item, index) => {
+                const cat = CATEGORIES[item.category] || CATEGORIES.sightseeing;
+                const mapQuery = encodeURIComponent(item.location || item.title);
+                const mapUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition active:scale-[0.995]';
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <!-- Time & Category Icon Column -->
+                        <div class="flex flex-col items-center shrink-0 w-13">
+                            <span class="text-sm font-bold text-gray-900 tabular-nums">${item.time}</span>
+                            <div class="w-9 h-9 rounded-xl ${cat.bg} ${cat.text} flex items-center justify-center mt-1.5">
+                                <i data-lucide="${cat.icon}" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+
+                        <!-- Main Content Column -->
+                        <div class="flex-1 min-w-0" onclick="openActivityModal('${item.id}')">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="text-[11px] font-bold px-2 py-0.5 rounded-md ${cat.badge}">${cat.label}</span>
+                                ${item.cost > 0 ? `<span class="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">${trip.currency} ${Number(item.cost).toLocaleString()}</span>` : ''}
+                            </div>
+                            <h3 class="font-bold text-gray-900 text-base mt-1.5 leading-snug break-words">${escapeHTML(item.title)}</h3>
+                            
+                            ${item.notes ? `<p class="text-xs text-gray-500 mt-1.5 leading-relaxed bg-gray-50 p-2 rounded-xl">${escapeHTML(item.notes)}</p>` : ''}
+                        </div>
+
+                        <!-- Reorder & Map Actions -->
+                        <div class="flex flex-col items-end justify-between gap-2 shrink-0">
+                            <a href="${mapUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="w-9 h-9 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition" title="在 Google 地圖開啟">
+                                <i data-lucide="navigation" class="w-4 h-4"></i>
+                            </a>
+                            <div class="flex items-center gap-0.5">
+                                <button onclick="moveActivity(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="p-1.5 text-gray-400 hover:text-gray-700 disabled:opacity-25">
+                                    <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="moveActivity(${index}, 1)" ${index === day.items.length - 1 ? 'disabled' : ''} class="p-1.5 text-gray-400 hover:text-gray-700 disabled:opacity-25">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderChecklist(trip) {
+            const container = document.getElementById('checklist-container');
+            const list = trip.checklist || [];
+            
+            const doneCount = list.filter(i => i.done).length;
+            const totalCount = list.length;
+            const pct = totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100);
+
+            document.getElementById('checklist-progress-text').textContent = `${doneCount} / ${totalCount} 完成`;
+            document.getElementById('checklist-progress-bar').style.width = `${pct}%`;
+
+            if (list.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-sm text-gray-400">清單目前為空，在上方輸入新增項目吧！</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(item => `
+                <div class="flex items-center justify-between p-3.5 hover:bg-gray-50 transition">
+                    <button onclick="toggleChecklistItem('${item.id}')" class="flex items-center gap-3 flex-1 text-left min-h-[32px]">
+                        <div class="w-6 h-6 rounded-lg flex items-center justify-center border transition ${item.done ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 bg-white'}">
+                            ${item.done ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+                        </div>
+                        <span class="text-sm font-medium ${item.done ? 'line-through text-gray-400' : 'text-gray-800'}">${escapeHTML(item.text)}</span>
+                    </button>
+                    <button onclick="deleteChecklistItem('${item.id}')" class="p-2 text-gray-300 hover:text-red-500 transition">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function renderBudget(trip) {
+            let itinerarySum = 0;
+            const catTotals = { sightseeing: 0, food: 0, transport: 0, hotel: 0, shopping: 0 };
+
+            trip.days.forEach(day => {
+                day.items.forEach(item => {
+                    const cost = Number(item.cost) || 0;
+                    itinerarySum += cost;
+                    if (catTotals[item.category] !== undefined) {
+                        catTotals[item.category] += cost;
+                    }
+                });
+            });
+
+            const extraSum = (trip.extraExpenses || []).reduce((acc, cur) => acc + (Number(cur.cost) || 0), 0);
+            const grandTotal = itinerarySum + extraSum;
+
+            document.getElementById('budget-currency-badge').textContent = trip.currency;
+            document.getElementById('budget-total-amount').textContent = `${trip.currency} ${grandTotal.toLocaleString()}`;
+            document.getElementById('budget-itinerary-sum').textContent = `${trip.currency} ${itinerarySum.toLocaleString()}`;
+            document.getElementById('budget-extra-sum').textContent = `${trip.currency} ${extraSum.toLocaleString()}`;
+
+            // Render Category Breakdown
+            const breakdownEl = document.getElementById('budget-breakdown-container');
+            breakdownEl.innerHTML = Object.keys(CATEGORIES).map(key => {
+                const cat = CATEGORIES[key];
+                const amount = catTotals[key];
+                const pct = itinerarySum === 0 ? 0 : Math.round((amount / itinerarySum) * 100);
+                return `
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1">
+                            <span class="text-gray-700 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full ${cat.bar}"></span>
+                                ${cat.label}
+                            </span>
+                            <span class="text-gray-900 font-semibold">${trip.currency} ${amount.toLocaleString()} <span class="text-gray-400 font-normal">(${pct}%)</span></span>
+                        </div>
+                        <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                            <div class="${cat.bar} h-full rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Render Extra Expenses
+            const extraListEl = document.getElementById('extra-expenses-list');
+            const extras = trip.extraExpenses || [];
+            if (extras.length === 0) {
+                extraListEl.innerHTML = `<p class="text-xs text-gray-400 py-2">暫無額外固定開支</p>`;
+            } else {
+                extraListEl.innerHTML = extras.map(ext => `
+                    <div class="flex items-center justify-between py-2.5 text-sm">
+                        <span class="text-gray-700 font-medium">${escapeHTML(ext.name)}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold text-gray-900">${trip.currency} ${Number(ext.cost).toLocaleString()}</span>
+                            <button onclick="deleteExtraExpense('${ext.id}')" class="text-gray-300 hover:text-red-500">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // ==========================================
+        // TAB NAVIGATION & MODALS
+        // ==========================================
+        function switchTab(tabName) {
+            appState.activeTab = tabName;
+            
+            ['itinerary', 'checklist', 'budget'].forEach(t => {
+                const section = document.getElementById(`tab-${t}`);
+                const btn = document.getElementById(`nav-btn-${t}`);
+                if (t === tabName) {
+                    section.classList.remove('hidden');
+                    btn.classList.remove('text-gray-400');
+                    btn.classList.add('text-blue-600');
+                } else {
+                    section.classList.add('hidden');
+                    btn.classList.add('text-gray-400');
+                    btn.classList.remove('text-blue-600');
+                }
+            });
+
+            // Show/hide Day selector & FAB only on Itinerary tab
+            document.getElementById('day-selector-wrapper').style.display = tabName === 'itinerary' ? 'flex' : 'none';
+            document.getElementById('fab-add').style.display = tabName === 'itinerary' ? 'flex' : 'none';
+        }
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('modal-hidden');
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            el.classList.add('modal-hidden');
+        }
+
+        function openInstallModal() {
+            openModal('install-modal');
+            lucide.createIcons();
+        }
+
+        function openShareModal() {
+            openModal('share-modal');
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // ACTIVITY CRUD & REORDERING
+        // ==========================================
+        function openActivityModal(activityId = null) {
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+            const form = document.getElementById('activity-form');
+            const deleteBtn = document.getElementById('btn-delete-activity');
+            
+            form.reset();
+            
+            if (activityId) {
+                const item = day.items.find(i => i.id === activityId);
+                if (!item) return;
+                document.getElementById('activity-modal-title').textContent = '編輯行程項目';
+                document.getElementById('act-id').value = item.id;
+                document.getElementById('act-time').value = item.time;
+                document.getElementById('act-category').value = item.category;
+                document.getElementById('act-title').value = item.title;
+                document.getElementById('act-location').value = item.location || '';
+                document.getElementById('act-cost').value = item.cost || '';
+                document.getElementById('act-notes').value = item.notes || '';
+                deleteBtn.classList.remove('hidden');
+            } else {
+                document.getElementById('activity-modal-title').textContent = '新增行程項目';
+                document.getElementById('act-id').value = '';
+                document.getElementById('act-time').value = '10:00';
+                document.getElementById('act-category').value = 'sightseeing';
+                deleteBtn.classList.add('hidden');
+            }
+
+            openModal('activity-modal');
+        }
+
+        function saveActivity(e) {
+            e.preventDefault();
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+
+            const id = document.getElementById('act-id').value;
+            const time = document.getElementById('act-time').value;
+            const category = document.getElementById('act-category').value;
+            const title = document.getElementById('act-title').value.trim();
+            const location = document.getElementById('act-location').value.trim();
+            const cost = parseFloat(document.getElementById('act-cost').value) || 0;
+            const notes = document.getElementById('act-notes').value.trim();
+
+            if (id) {
+                const idx = day.items.findIndex(i => i.id === id);
+                if (idx !== -1) {
+                    day.items[idx] = { id, time, category, title, location, cost, notes };
+                }
+                showToast('已更新行程項目');
+            } else {
+                day.items.push({
+                    id: 'act_' + Date.now(),
+                    time, category, title, location, cost, notes
+                });
+                // Auto sort chronologically when adding new item
+                day.items.sort((a, b) => a.time.localeCompare(b.time));
+                showToast('已新增行程項目');
+            }
+
+            saveState();
+            renderAll();
+            closeModal('activity-modal');
+        }
+
+        function deleteCurrentActivity() {
+            const id = document.getElementById('act-id').value;
+            if (!id) return;
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+            day.items = day.items.filter(i => i.id !== id);
+            
+            saveState();
+            renderAll();
+            closeModal('activity-modal');
+            showToast('已刪除項目');
+        }
+
+        function moveActivity(index, direction) {
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= day.items.length) return;
+
+            const temp = day.items[index];
+            day.items[index] = day.items[targetIndex];
+            day.items[targetIndex] = temp;
+
+            saveState();
+            renderAll();
+        }
+
+        function sortDayItemsByTime() {
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+            day.items.sort((a, b) => a.time.localeCompare(b.time));
+            saveState();
+            renderAll();
+            showToast('已按時間順序排列');
+        }
+
+        // ==========================================
+        // DAY MANAGEMENT
+        // ==========================================
+        function addNewDay() {
+            const trip = getCurrentTrip();
+            const lastDay = trip.days[trip.days.length - 1];
+            let nextDateStr = new Date().toISOString().split('T')[0];
+
+            if (lastDay && lastDay.date) {
+                const d = new Date(lastDay.date + 'T00:00:00');
+                if (!isNaN(d)) {
+                    d.setDate(d.getDate() + 1);
+                    nextDateStr = d.toISOString().split('T')[0];
+                }
+            }
+
+            trip.days.push({
+                date: nextDateStr,
+                theme: `第 ${trip.days.length + 1} 天自由探索`,
+                items: []
+            });
+
+            appState.activeDayIndex = trip.days.length - 1;
+            saveState();
+            renderAll();
+            showToast(`已新增 Day ${trip.days.length}`);
+        }
+
+        function editCurrentDayInfo() {
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+            document.getElementById('edit-day-date').value = day.date;
+            document.getElementById('edit-day-theme').value = day.theme;
+            
+            const delBtn = document.getElementById('btn-delete-day');
+            delBtn.style.display = trip.days.length > 1 ? 'block' : 'none';
+            
+            openModal('day-edit-modal');
+        }
+
+        function saveDayInfo(e) {
+            e.preventDefault();
+            const trip = getCurrentTrip();
+            const day = trip.days[appState.activeDayIndex];
+            day.date = document.getElementById('edit-day-date').value;
+            day.theme = document.getElementById('edit-day-theme').value.trim();
+            
+            saveState();
+            renderAll();
+            closeModal('day-edit-modal');
+            showToast('已更新當日設定');
+        }
+
+        function deleteCurrentDay() {
+            const trip = getCurrentTrip();
+            if (trip.days.length <= 1) return;
+            trip.days.splice(appState.activeDayIndex, 1);
+            appState.activeDayIndex = Math.max(0, appState.activeDayIndex - 1);
+            saveState();
+            renderAll();
+            closeModal('day-edit-modal');
+            showToast('已刪除該天行程');
+        }
+
+        // ==========================================
+        // TRIP MANAGEMENT
+        // ==========================================
+        function openTripManager() {
+            const container = document.getElementById('trips-list-container');
+            container.innerHTML = appState.trips.map(t => {
+                const isSelected = t.id === appState.activeTripId;
+                return `
+                    <div class="flex items-center justify-between p-3.5 rounded-2xl border transition ${isSelected ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 bg-white'}">
+                        <button onclick="switchTrip('${t.id}')" class="flex-1 text-left">
+                            <div class="font-bold text-sm text-gray-900 flex items-center gap-2">
+                                <span>${escapeHTML(t.name)}</span>
+                                ${isSelected ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">使用中</span>' : ''}
+                            </div>
+                            <div class="text-xs text-gray-500 mt-0.5">${t.days.length} 天行程 • 貨幣 ${t.currency}</div>
+                        </button>
+                        ${appState.trips.length > 1 ? `
+                            <button onclick="deleteTrip('${t.id}')" class="p-2 text-gray-400 hover:text-red-500 transition" title="刪除旅程">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            // Set default date in new trip form to today
+            document.getElementById('new-trip-date').value = new Date().toISOString().split('T')[0];
+
+            openModal('trip-modal');
+            lucide.createIcons();
+        }
+
+        function switchTrip(tripId) {
+            appState.activeTripId = tripId;
+            appState.activeDayIndex = 0;
+            saveState();
+            renderAll();
+            closeModal('trip-modal');
+            showToast('已切換旅程');
+        }
+
+        function createNewTrip(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-trip-name').value.trim();
+            const startDateStr = document.getElementById('new-trip-date').value;
+            const numDays = parseInt(document.getElementById('new-trip-days').value, 10) || 3;
+            const currency = document.getElementById('new-trip-currency').value;
+
+            const days = [];
+            const baseDate = new Date(startDateStr + 'T00:00:00');
+            for (let i = 0; i < numDays; i++) {
+                const d = new Date(baseDate);
+                d.setDate(baseDate.getDate() + i);
+                days.push({
+                    date: d.toISOString().split('T')[0],
+                    theme: i === 0 ? '抵達目的地・市區探索' : (i === numDays - 1 ? '手信採購・返程回港' : `第 ${i + 1} 天精彩行程`),
+                    items: []
+                });
+            }
+
+            const newTrip = {
+                id: 'trip_' + Date.now(),
+                name,
+                currency,
+                days,
+                checklist: [
+                    { id: 'c_' + Date.now() + '_1', text: '護照及身份證', done: false },
+                    { id: 'c_' + Date.now() + '_2', text: '外幣現金及信用卡', done: false },
+                    { id: 'c_' + Date.now() + '_3', text: '電話卡 /漫遊數據 & 充電器', done: false }
+                ],
+                extraExpenses: []
+            };
+
+            appState.trips.push(newTrip);
+            appState.activeTripId = newTrip.id;
+            appState.activeDayIndex = 0;
+
+            saveState();
+            renderAll();
+            closeModal('trip-modal');
+            e.target.reset();
+            showToast(`已建立「${name}」`);
+        }
+
+        function deleteTrip(tripId) {
+            if (appState.trips.length <= 1) return;
+            appState.trips = appState.trips.filter(t => t.id !== tripId);
+            if (appState.activeTripId === tripId) {
+                appState.activeTripId = appState.trips[0].id;
+                appState.activeDayIndex = 0;
+            }
+            saveState();
+            renderAll();
+            openTripManager();
+            showToast('已刪除旅程');
+        }
+
+        // ==========================================
+        // CHECKLIST & EXTRA EXPENSES
+        // ==========================================
+        function handleAddChecklist(e) {
+            e.preventDefault();
+            const input = document.getElementById('new-checklist-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const trip = getCurrentTrip();
+            trip.checklist.unshift({
+                id: 'chk_' + Date.now(),
+                text,
+                done: false
+            });
+            input.value = '';
+            saveState();
+            renderChecklist(trip);
+            lucide.createIcons();
+        }
+
+        function toggleChecklistItem(id) {
+            const trip = getCurrentTrip();
+            const item = trip.checklist.find(i => i.id === id);
+            if (item) {
+                item.done = !item.done;
+                saveState();
+                renderChecklist(trip);
+                lucide.createIcons();
+            }
+        }
+
+        function deleteChecklistItem(id) {
+            const trip = getCurrentTrip();
+            trip.checklist = trip.checklist.filter(i => i.id !== id);
+            saveState();
+            renderChecklist(trip);
+            lucide.createIcons();
+        }
+
+        function handleAddExtraExpense(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('extra-expense-name');
+            const costInput = document.getElementById('extra-expense-cost');
+            const name = nameInput.value.trim();
+            const cost = parseFloat(costInput.value) || 0;
+            if (!name) return;
+
+            const trip = getCurrentTrip();
+            if (!trip.extraExpenses) trip.extraExpenses = [];
+            trip.extraExpenses.push({
+                id: 'ext_' + Date.now(),
+                name,
+                cost
+            });
+
+            nameInput.value = '';
+            costInput.value = '';
+            saveState();
+            renderBudget(trip);
+            lucide.createIcons();
+            showToast('已新增開支');
+        }
+
+        function deleteExtraExpense(id) {
+            const trip = getCurrentTrip();
+            trip.extraExpenses = trip.extraExpenses.filter(e => e.id !== id);
+            saveState();
+            renderBudget(trip);
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // SHARE, COPY TEXT & JSON BACKUP
+        // ==========================================
+        function copyItineraryText() {
+            const trip = getCurrentTrip();
+            let lines = [`✈️ 【${trip.name}】行程表\n`];
+
+            trip.days.forEach((day, idx) => {
+                lines.push(`📅 Day ${idx + 1} (${day.date}) - ${day.theme}`);
+                if (day.items.length === 0) {
+                    lines.push(`   (暫無安排)`);
+                } else {
+                    day.items.forEach(item => {
+                        const catLabel = CATEGORIES[item.category]?.label || '行程';
+                        const costStr = item.cost > 0 ? ` [${trip.currency} ${item.cost}]` : '';
+                        lines.push(`   • ${item.time} [${catLabel}] ${item.title}${costStr}`);
+                        if (item.notes) {
+                            lines.push(`     備註: ${item.notes}`);
+                        }
+                    });
+                }
+                lines.push('');
+            });
+
+            const fullText = lines.join('\n');
+            const helper = document.getElementById('clipboard-helper');
+            helper.value = fullText;
+            helper.select();
+            helper.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                closeModal('share-modal');
+                showToast('已複製文字行程，可貼上至 WhatsApp！');
+            } catch (err) {
+                showToast('複製失敗，請嘗試匯出檔案');
+            }
+        }
+
+        function exportJSON() {
+            const dataStr = JSON.stringify(appState, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `TripFlow_備份_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            closeModal('share-modal');
+            showToast('已匯出 JSON 備份檔');
+        }
+
+        function importJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
+                        appState = parsed;
+                        saveState();
+                        renderAll();
+                        closeModal('share-modal');
+                        showToast('成功還原行程備份！');
+                    } else {
+                        showToast('檔案格式不正確');
+                    }
+                } catch (err) {
+                    showToast('讀取檔案失敗');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function escapeHTML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Boot App on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            checkStandaloneMode();
+            renderAll();
+        });
+    </script>
+</body>
+</html>
